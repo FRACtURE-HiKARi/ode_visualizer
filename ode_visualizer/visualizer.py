@@ -17,7 +17,7 @@ from matplotlib import widgets
 from matplotlib.axes import Axes
 from typing import Any
 import matplotlib.backend_bases as mpl_backend
-from numpy import sin, cos, tan, arcsin, arccos, arctan, exp, log
+from numpy import sin, cos, tan, arcsin, arccos, arctan, exp, log, abs
 from functools import partial
 
 def within_range(x0, llim, hlim):
@@ -35,6 +35,7 @@ class visualizer:
     drag_start = tuple()
     euler_step = 0.01
     graph_color = '#1f77b4'
+    default_ode = "y**2 - 3*y + 1"
 
     K: np.vectorize
 
@@ -42,18 +43,18 @@ class visualizer:
         self.fig = plt.figure(num=1, figsize=(self.w, self.h))
         self.ax: Axes = self.fig.add_axes([0.1, 0.15, 0.8, 0.8])
         self.fig.suptitle('Direction Field & IVP Solution')
-        self.axbox: Axes = self.fig.add_axes([0.2, 0.05, 0.6, 0.06])
-        self.textbox = widgets.TextBox(self.axbox, "dy/dx=:", initial="y**2 - y*3 + 1")
+        self.axtext: Axes = self.fig.add_axes([0.2, 0.05, 0.6, 0.06])
+        self.textbox = widgets.TextBox(self.axtext, "dy/dx=:", initial=self.default_ode)
         self.textbox.on_submit(partial(self.submit_callback))
-        helpbox = self.fig.add_axes([0.8, 0.05, 0.1, 0.06])
-        self.help_button = widgets.Button(helpbox, "Help")
+        axhelp = self.fig.add_axes([0.8, 0.05, 0.1, 0.06])
+        self.help_button = widgets.Button(axhelp, "Help")
         self.help_button.on_clicked(partial(self.help_callback))
         self.fig.canvas.mpl_connect('button_press_event', partial(self.button_press_callback))
         self.fig.canvas.mpl_connect('button_release_event', partial(self.button_release_callback))
         self.fig.canvas.mpl_connect('motion_notify_event', partial(self.motion_callback))
         self.fig.canvas.mpl_connect('scroll_event', partial(self.scroll_callback))
         self.fig.canvas.mpl_connect('close_event', partial(self.close_callback))
-        self.submit_callback("y**2 - y*3 + 1")
+        self.submit_callback(self.default_ode)
 
     def start_event_loop(self):
         plt.show()
@@ -80,10 +81,7 @@ class visualizer:
         Y = np.linspace(ym, yM, int((yM - ym) / self.gridsize))
         X, Y = np.meshgrid(X, Y)
 
-        try:
-            T = np.arctan(self.K(X, Y))
-        except SyntaxError:
-            self.textbox.set_val("INVALID INPUT")
+        T = np.arctan(self.K(X, Y))
         U = np.cos(T)
         V = np.sin(T)
         self.ax.quiver(X, Y, U, V)
@@ -108,8 +106,22 @@ class visualizer:
             self.ax.plot(xs, ys, c=self.graph_color)
         plt.draw()
 
-    def submit_callback(self, text):
-        self.K = np.vectorize(lambda x, y: eval(text))
+    def submit_callback(self, text: str):
+        if text == "" or text.startswith("INVALID"):
+            return
+        try:
+            # Check for undefined variables
+            code = compile(text, '<string>', 'eval')
+            for name in code.co_names:
+                if name not in {'x', 'y', 'sin', 'cos', 'tan', 'arcsin', 'arccos', 'arctan', 'exp', 'log', 'abs'}:
+                    raise NameError(f"Undefined variable: {name}")
+            self.K = np.vectorize(lambda x, y: eval(text))
+        except SyntaxError as e:
+            self.textbox.set_val("INVALID SYNTAX")
+            return
+        except NameError as e:
+            self.textbox.set_val(f"INVALID FUNCTION NAME: {e}")
+            return
         self.update_graph()
 
     def button_press_callback(self, event: mpl_backend.MouseEvent):
@@ -125,6 +137,8 @@ class visualizer:
             elif event.button == 3:  # Right click
                 self.initial_points.clear()
                 self.update_graph()
+        elif event.inaxes == self.axtext and event.button == 3:
+            self.textbox.set_val("")
 
     def button_release_callback(self, event: mpl_backend.MouseEvent):
         if event.inaxes == self.ax and event.button == 1:
