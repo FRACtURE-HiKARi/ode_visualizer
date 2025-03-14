@@ -10,14 +10,13 @@ Date:
 try:
     import numpy as np
     import matplotlib.pyplot as plt
+    from matplotlib import widgets
+    from matplotlib.axes import Axes
+    import matplotlib.backend_bases as mpl_backend
+    from numpy import sin, cos, tan, arcsin, arccos, arctan, exp, log, abs
 except ImportError:
-    print("Please install package numpy and matplotlib.")
+    raise ImportError("Please install package numpy and matplotlib.")
 
-from matplotlib import widgets
-from matplotlib.axes import Axes
-from typing import Any
-import matplotlib.backend_bases as mpl_backend
-from numpy import sin, cos, tan, arcsin, arccos, arctan, exp, log, abs
 from functools import partial
 
 def within_range(x0, llim, hlim):
